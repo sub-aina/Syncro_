@@ -2,10 +2,19 @@ import { useState, useRef, useEffect } from "react";
 import Login from "./login";
 import SignUp from "./signup";
 import Cubes from "./Cubes";
+import { useLocation } from "react-router-dom";
 
 export default function AuthForm() {
 	const [isLogin, setIsLogin] = useState(true);
 	const [isTransitioning, setIsTransitioning] = useState(false);
+	const location = useLocation();
+
+	useEffect(() => {
+		const params = new URLSearchParams(location.search);
+		if (params.get("mode") === "login") {
+			setIsLogin(true);
+		}
+	}, [location.search]);
 
 	const toggleAuthMode = () => {
 		setIsTransitioning(true);

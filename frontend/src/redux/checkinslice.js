@@ -1,12 +1,20 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import axios from 'axios';
 import { submitCheckInAPI } from '../services/checkinService'; // Adjust path if needed
-
+import { getCheckInsAPI } from '../services/checkinService';
 export const submitCheckIn = createAsyncThunk(
     "checkin/submit",
     async (data) => {
         return await submitCheckInAPI(data);
     }
+);
+
+export const fetchCheckIns = createAsyncThunk(
+    "checkin/fetchCheckIns",
+    async () => {
+        return await getCheckInsAPI();
+    }
+
 );
 
 const checkinSlice = createSlice({

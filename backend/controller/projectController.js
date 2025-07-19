@@ -3,11 +3,12 @@ import User from "../schema/user.js";
 
 export const CreateProject = async (req, res) => {
     try {
-        const { name, description, course, deadline, goals } = req.body;
+        const { name, description, course, deadline, goals, status } = req.body;
         const userId = req.user;
 
         const newProject = new Project({
-            name, description, course, deadline, goals,
+            name, description, course, deadline, goals, status,
+
             createdBy: userId, teamMembers: [userId],
         });
 

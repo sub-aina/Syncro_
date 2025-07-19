@@ -218,10 +218,9 @@ export default function SignUp() {
 			// Debug: Log what we received
 			console.log("Received token:", token);
 			console.log("Received user:", user);
+			navigate("/?mode=login");
 
-			// Small delay to ensure localStorage is fully set
-
-			navigate("/dashboard");
+			// navigate("/login");
 		} catch (err) {
 			console.error("Signup error:", err);
 			setError(err.message);

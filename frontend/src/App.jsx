@@ -4,6 +4,7 @@ import {
 	Route,
 	Navigate,
 } from "react-router-dom";
+import Login from "./components/login";
 import AuthForm from "./components/authform";
 import Dashboard from "./components/Dashboard";
 import CreateProject from "./components/createProject";
@@ -14,6 +15,7 @@ function App() {
 	return (
 		<Router>
 			<Routes>
+				{/* <Route path="/login" element={<Login />} /> */}
 				<Route path="/" element={<AuthForm />} />
 				<Route
 					path="/dashboard"

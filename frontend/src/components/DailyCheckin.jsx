@@ -33,6 +33,7 @@ const DailyCheckin = () => {
 					blockers: "",
 				});
 				alert("Check-in submitted successfully!");
+				navigate("/dashboard");
 			})
 			.catch((err) => {
 				console.error("Error submitting check-in:", err);

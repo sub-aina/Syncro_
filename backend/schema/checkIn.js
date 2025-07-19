@@ -10,6 +10,6 @@ const checkInSchema = new mongoose.Schema({
     energy: Number,
     blockers: [String],
     nextSteps: String,
-});
+}, { timestamps: true });
 
 export default mongoose.model("CheckIn", checkInSchema);
