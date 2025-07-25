@@ -12,6 +12,7 @@ const projectSchema = new mongoose.Schema({
     progress: Number,
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     createdAt: { type: Date, default: Date.now },
+    team: { type: mongoose.Schema.Types.ObjectId, ref: "Team" },
 });
 
 export default mongoose.model("Project", projectSchema);

@@ -13,9 +13,9 @@ export default function Login() {
 	const handleSubmit = async (e) => {
 		e.preventDefault();
 		try {
-			const { token, user } = await loginUser(form.email, form.password); // ✅ destructure both
+			const { token, user } = await loginUser(form.email, form.password);
 			localStorage.setItem("token", token);
-			localStorage.setItem("user", JSON.stringify(user)); // optional: store user too
+			localStorage.setItem("user", JSON.stringify(user));
 			navigate("/dashboard");
 		} catch (err) {
 			setError(err.message);

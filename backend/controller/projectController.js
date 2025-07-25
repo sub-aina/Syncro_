@@ -1,13 +1,24 @@
 import Project from "../schema/project.js";
 import User from "../schema/user.js";
+import Team from "../schema/team.js";
 
 export const CreateProject = async (req, res) => {
     try {
-        const { name, description, course, deadline, goals, status } = req.body;
+        const { name, description, course, deadline, goals, status, team } = req.body;
         const userId = req.user;
 
+        let teamMembers = [userId];
+
+        if (team) {
+            const selectedTeam = await Team.findById(team);
+            if (!selectedTeam) {
+                return res.status(404).json({ error: "Team not found" });
+            }
+
+            teamMembers = selectedTeam.members;
+        }
         const newProject = new Project({
-            name, description, course, deadline, goals, status,
+            name, description, course, deadline, goals, status, team,
 
             createdBy: userId, teamMembers: [userId],
         });

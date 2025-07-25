@@ -13,8 +13,8 @@ const userSchema = new mongoose.Schema({
         select: false,
     },
     avatar: {
-        type: [String], // Array of color hex codes
-        default: ['#FF6B6B', '#FFFFFF'], // Default color scheme
+        type: [String],
+        default: ['#FF6B6B', '#FFFFFF'],
         validate: {
             validator: function (colors) {
                 return colors.length === 2 &&

@@ -47,6 +47,9 @@ export default function AuthForm() {
 				<div className="w-full max-w-xl p-8 border border-white/10 backdrop-blur-md bg-white/5 shadow-lg rounded-md relative z-10">
 					{/* Header */}
 					<div className="text-center mb-6">
+						<h1 className="text-3xl font-bold tracking-wider text-white drop-shadow-sm mb-2">
+							Syncro
+						</h1>
 						<p className="text-xs text-gray-400 mt-1 tracking-wider">
 							{isLogin ? "Welcome back" : "Create your account"}
 						</p>
@@ -69,7 +72,7 @@ export default function AuthForm() {
 							</div>
 							<div className="relative flex justify-center">
 								<span className="px-4 text-xs text-gray-400 uppercase tracking-wider bg-[#060010]/80">
-									{isLogin ? "New to Dappr?" : "Already with us?"}
+									{isLogin ? "New to Syncro?" : "Already with us?"}
 								</span>
 							</div>
 						</div>

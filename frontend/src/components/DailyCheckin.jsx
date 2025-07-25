@@ -125,7 +125,7 @@ const DailyCheckin = () => {
 				<div className="max-w-7xl mx-auto px-6 lg:px-8">
 					<div className="flex justify-between items-center h-16">
 						<div className="flex items-center space-x-8">
-							<h1 className="text-xl font-light tracking-wider">DAPPR</h1>
+							<h1 className="text-xl font-light tracking-wider">Syncro</h1>
 							<div className="hidden md:flex space-x-6">
 								<button
 									onClick={() => navigate("/dashboard")}

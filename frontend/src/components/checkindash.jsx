@@ -43,7 +43,6 @@ const CheckinDashboard = () => {
 			energy: todayCheckin?.energy || 0,
 		});
 
-		// Weekly data (assuming checkins are sorted newest -> oldest)
 		const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 		const past7Days = [...Array(7)].map((_, i) => {
 			const date = new Date();

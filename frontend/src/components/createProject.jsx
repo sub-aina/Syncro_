@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { createProject } from "../services/createproj";
 import { useNavigate } from "react-router-dom";
-
+import { useEffect } from "react";
+import API from "../api";
 const ProjectForm = () => {
 	const [formData, setFormData] = useState({
 		name: "",
@@ -11,10 +12,51 @@ const ProjectForm = () => {
 		goals: "",
 		status: "active",
 	});
+	const [teams, setTeams] = useState([]);
+	const [teamId, setTeamId] = useState("");
+	const [teamMembers, setTeamMembers] = useState([]);
 
 	const navigate = useNavigate();
 
 	const [isSubmitting, setIsSubmitting] = useState(false);
+
+	useEffect(() => {
+		const fetchTeams = async () => {
+			try {
+				const token = localStorage.getItem("token");
+				const res = await API.get("/teams", {
+					headers: { Authorization: token },
+				});
+				const data = res.data;
+
+				setTeams(data.teams);
+			} catch (err) {
+				console.error("Failed to fetch teams", err);
+			}
+		};
+		fetchTeams();
+	}, []);
+
+	useEffect(() => {
+		const fetchTeamMembers = async () => {
+			if (!teamId) return setTeamMembers([]);
+
+			try {
+				const token = localStorage.getItem("token");
+				const res = await API.get(`/teams/${teamId}/details`, {
+					headers: {
+						Authorization: `Bearer ${token}`,
+					},
+				});
+				const data = res.data;
+
+				setTeamMembers(data.team.members);
+			} catch (err) {
+				console.error("Failed to fetch team details", err);
+			}
+		};
+		fetchTeamMembers();
+	}, [teamId]);
 
 	const handleChange = (e) => {
 		setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -30,6 +72,7 @@ const ProjectForm = () => {
 			const project = await createProject({
 				...formData,
 				goals: goalList,
+				team: teamId || null,
 			});
 			navigate("/dashboard");
 			console.log("Project created:", project);
@@ -45,7 +88,7 @@ const ProjectForm = () => {
 				<div className="max-w-7xl mx-auto px-6 lg:px-8">
 					<div className="flex justify-between items-center h-16">
 						<div className="flex items-center space-x-8">
-							<h1 className="text-xl font-light tracking-wider">DAPPR</h1>
+							<h1 className="text-xl font-light tracking-wider">Syncro</h1>
 							<div className="hidden md:flex space-x-6">
 								<button
 									onClick={() => navigate("/dashboard")}
@@ -145,6 +188,44 @@ const ProjectForm = () => {
 									className="w-full bg-white/5 border border-white/10 rounded-sm px-4 py-3 text-white focus:outline-none focus:border-white/30 focus:bg-white/10 transition-all duration-300 font-light tracking-wide"
 								/>
 							</div>
+						</div>
+
+						<div className="mb-6">
+							<label className="block text-sm text-gray-300 font-semibold tracking-wide mb-2">
+								Assign to Team{" "}
+								<span className="text-gray-500 font-normal">(optional)</span>
+							</label>
+							<select
+								value={teamId}
+								onChange={(e) => setTeamId(e.target.value)}
+								className="w-full bg-[#1e1b2e] border border-white/10 text-sm text-gray-200 px-4 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 transition duration-200"
+							>
+								<option value="">— No Team (Independent Project) —</option>
+								{teams.map((team) => (
+									<option key={team._id} value={team._id}>
+										{team.name}
+									</option>
+								))}
+							</select>
+
+							{/* Team Members Preview */}
+							{teamMembers.length > 0 && (
+								<div className="mt-4 border border-white/10 rounded-md bg-white/5 px-4 py-3">
+									<p className="text-sm text-gray-300 font-medium mb-2">
+										Team Members
+									</p>
+									<ul className="space-y-1 text-sm text-gray-400 list-disc list-inside pl-2">
+										{teamMembers.map((member) => (
+											<li key={member._id}>
+												<span className="font-medium text-white">
+													{member.name}
+												</span>{" "}
+												<span className="text-gray-400">({member.email})</span>
+											</li>
+										))}
+									</ul>
+								</div>
+							)}
 						</div>
 
 						{/* Goals */}
