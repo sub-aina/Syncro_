@@ -24,7 +24,7 @@ app.use(cors({
         'http://localhost:3000',
         'http://localhost:5173',
         'http://localhost:4173',
-        ' https://syncro-delta.vercel.app'
+        'https://syncro-delta.vercel.app'
 
     ],
     credentials: true,
