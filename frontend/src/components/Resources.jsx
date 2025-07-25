@@ -392,7 +392,7 @@ const TeamResources = () => {
 										)}
 										{res.type === "file" && (
 											<a
-												href={`http://localhost:5000/${res.file.filepath}`}
+												href={`https://syncro-crhm.onrender.com/${res.file.filepath}`}
 												download={res.file.filename}
 												className="text-blue-400 hover:text-blue-300 transition-colors flex items-center space-x-2 group/download"
 											>

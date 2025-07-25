@@ -23,7 +23,7 @@ const CreateTeamForm = ({ onTeamCreated }) => {
 			}
 
 			const res = await axios.post(
-				"http://localhost:5000/api/teams",
+				"https://syncro-crhm.onrender.com/api/teams",
 				{
 					name: name.trim(),
 					description: desc.trim(),
