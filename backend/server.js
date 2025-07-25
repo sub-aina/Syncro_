@@ -18,8 +18,19 @@ const __dirname = dirname(__filename);
 dotenv.config();
 
 const app = express(); // Create an Express application
-app.use(cors()); // Enable CORS for all routes
 
+app.use(cors({
+    origin: [
+        'http://localhost:3000',
+        'http://localhost:5173',
+        'http://localhost:4173',
+        ' https://syncro-delta.vercel.app'
+
+    ],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json()); // Parse JSON bodies
 
 app.use("/api/auth", authRoutes);
