@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 
 import { fetchCheckIns } from "../redux/checkinslice";
@@ -17,6 +17,7 @@ import {
 
 const CheckinDashboard = () => {
 	const navigate = useNavigate();
+	const location = useLocation();
 	const dispatch = useDispatch();
 	const { checkins, loading } = useSelector((state) => state.checkin);
 
@@ -29,18 +30,52 @@ const CheckinDashboard = () => {
 		total: 30,
 	});
 
+	const getDateString = (checkinData) => {
+		const actualCheckin = checkinData.checkin || checkinData;
+
+		if (actualCheckin.createdAt) {
+			if (typeof actualCheckin.createdAt === "string") {
+				return actualCheckin.createdAt.slice(0, 10);
+			}
+			if (actualCheckin.createdAt instanceof Date) {
+				return actualCheckin.createdAt.toISOString().slice(0, 10);
+			}
+		}
+
+		if (actualCheckin.date) {
+			if (typeof actualCheckin.date === "string") {
+				return actualCheckin.date.slice(0, 10);
+			}
+			if (actualCheckin.date instanceof Date) {
+				return actualCheckin.date.toISOString().slice(0, 10);
+			}
+		}
+
+		console.warn("No valid date found in checkin:", actualCheckin);
+		return null;
+	};
+
+	const getCheckinData = (item) => {
+		if (!item) return {};
+		return item.checkin || item;
+	};
+
 	useEffect(() => {
+		console.log("Checkins data:", checkins); // Debug log
 		if (checkins.length === 0) return;
 
 		// Today
 		const today = new Date().toISOString().slice(0, 10);
 		const todayCheckin = checkins.find(
-			(entry) => entry.createdAt.slice(0, 10) === today
+			(entry) => getDateString(entry) === today
 		);
+
+		const todayData = todayCheckin ? getCheckinData(todayCheckin) : null;
+
 		setTodayCompleted(!!todayCheckin);
 		setTodayData({
-			mood: todayCheckin?.mood || 0,
-			energy: todayCheckin?.energy || 0,
+			mood: todayData?.mood || 0,
+			energy: todayData?.energy || 0,
 		});
 
 		const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -48,32 +83,43 @@ const CheckinDashboard = () => {
 			const date = new Date();
 			date.setDate(date.getDate() - (6 - i));
 			const key = date.toISOString().slice(0, 10);
-			const entry = checkins.find((c) => c.createdAt.slice(0, 10) === key);
+			const entry = checkins.find((c) => getDateString(c) === key);
+			const entryData = getCheckinData(entry);
+
 			return {
 				day: weekdays[date.getDay()],
-				mood: entry?.mood || 0,
-				energy: entry?.energy || 0,
+				mood: entryData?.mood || 0,
+				energy: entryData?.energy || 0,
 				completed: !!entry,
 			};
 		});
 		setWeeklyData(past7Days);
 
 		// Monthly stats
-		const thisMonth = new Date().toISOString().slice(0, 7);
-		const monthlyEntries = checkins.filter((c) =>
-			c.createdAt.startsWith(thisMonth)
-		);
-		setMonthlyStats({
-			completed: monthlyEntries.length,
-			total: new Date().getDate(),
+		const now = new Date();
+		const thisMonth = now.toISOString().slice(0, 7); // YYYY-MM format
+		const monthlyEntries = checkins.filter((c) => {
+			const dateStr = getDateString(c);
+			return dateStr && dateStr.startsWith(thisMonth);
 		});
 
+		// Get total days in current month
+		const year = now.getFullYear();
+		const month = now.getMonth() + 1; // getMonth() returns 0-11, we need 1-12
+		const totalDaysInMonth = new Date(year, month, 0).getDate();
+
+		setMonthlyStats({
+			completed: monthlyEntries.length,
+			total: totalDaysInMonth, // This will be 28, 29, 30, or 31 depending on the month
+		});
+
+		// Calculate streak
 		let streak = 0;
 		for (let i = 0; i < 30; i++) {
 			const date = new Date();
 			date.setDate(date.getDate() - i);
 			const key = date.toISOString().slice(0, 10);
-			if (checkins.find((c) => c.createdAt.slice(0, 10) === key)) {
+			if (checkins.find((c) => getDateString(c) === key)) {
 				streak++;
 			} else {
 				break;
@@ -82,10 +128,10 @@ const CheckinDashboard = () => {
 		setCurrentStreak(streak);
 	}, [checkins]);
 
-	// Fetch check-in data from API
+	// Fetch check-in data from API on component mount and location change
 	useEffect(() => {
 		dispatch(fetchCheckIns());
-	}, [dispatch]);
+	}, [dispatch, location.pathname]); // Added location.pathname to re-fetch when navigating back
 
 	const handleStartCheckin = () => {
 		navigate("/daily-checkin");
@@ -103,6 +149,20 @@ const CheckinDashboard = () => {
 	};
 
 	const averages = calculateAverages();
+
+	// Show loading state while fetching data
+	if (loading && checkins.length === 0) {
+		return (
+			<div className="flex items-center justify-center min-h-screen">
+				<div className="text-center">
+					<div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto mb-4"></div>
+					<p className="text-gray-400 text-sm tracking-wide">
+						Loading check-ins...
+					</p>
+				</div>
+			</div>
+		);
+	}
 
 	return (
 		<div className="space-y-6">

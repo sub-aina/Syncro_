@@ -34,7 +34,7 @@ const Dashboard = () => {
 		if (location.pathname.includes("projects")) return "Projects";
 		if (location.pathname.includes("checkins")) return "Check-ins";
 		if (location.pathname.includes("team")) return "Team";
-		return "Overview";
+		return "Dashboard";
 	};
 
 	const getSubtext = () => {
