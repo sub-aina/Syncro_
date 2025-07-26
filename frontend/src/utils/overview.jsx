@@ -131,9 +131,7 @@ const OverviewView = () => {
 				JSON.parse(str)
 			);
 			setTeamMembers(uniqueMembers);
-		} catch (err) {
-			// console.error("Error fetching team data:", err);
-		}
+		} catch (err) {}
 	};
 
 	const fetchRecentCheckIns = async () => {
@@ -147,17 +145,13 @@ const OverviewView = () => {
 
 	const fetchRecentActivity = async () => {
 		try {
-			// Generate activity from check-ins and projects
 			const activities = [];
 
-			// Add recent check-ins as activities
 			checkIns.slice(0, 5).forEach((checkIn, index) => {
 				activities.push({
 					id: `checkin-${checkIn._id || index}`,
 					type: "checkin",
-					message: `Daily check-in completed for ${
-						checkIn.projectId?.name || "a project"
-					}`,
+					message: `Daily check-in `,
 					user: checkIn.userId?.name || "Unknown User",
 					timestamp: new Date(checkIn.createdAt || checkIn.date),
 					color: "blue",
@@ -187,7 +181,6 @@ const OverviewView = () => {
 				}
 			});
 
-			// Sort by timestamp and take most recent
 			activities.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 			setRecentActivity(activities.slice(0, 10));
 		} catch (err) {
@@ -195,14 +188,12 @@ const OverviewView = () => {
 		}
 	};
 
-	// Recalculate activity when data changes
 	useEffect(() => {
 		if (projects.length > 0 || checkIns.length > 0) {
 			fetchRecentActivity();
 		}
 	}, [projects, checkIns]);
 
-	// Calculate stats
 	const totalProjects = projects.length;
 	const activeProjects = projects.filter((p) => p.status === "active").length;
 	const planningProjects = projects.filter(
@@ -212,7 +203,6 @@ const OverviewView = () => {
 		(p) => p.status === "completed"
 	).length;
 
-	// Calculate additional metrics
 	const overdue = projects.filter(
 		(p) =>
 			p.deadline &&
@@ -220,13 +210,11 @@ const OverviewView = () => {
 			p.status !== "completed"
 	).length;
 
-	// Calculate completion rate based on project status
 	const completionRate =
 		totalProjects > 0
 			? Math.round((completedProjects / totalProjects) * 100)
 			: 0;
 
-	// Get projects due soon (next 7 days)
 	const upcomingDeadlines = projects
 		.filter((p) => {
 			if (!p.deadline || p.status === "completed") return false;
@@ -237,7 +225,6 @@ const OverviewView = () => {
 		})
 		.sort((a, b) => new Date(a.deadline) - new Date(b.deadline));
 
-	// Get team productivity data
 	const activeTeamMembers = teamMembers.filter((m) => m.isActive).length;
 
 	const formatTime = (date) => {

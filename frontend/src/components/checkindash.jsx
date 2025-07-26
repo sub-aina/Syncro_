@@ -61,7 +61,6 @@ const CheckinDashboard = () => {
 	};
 
 	useEffect(() => {
-		console.log("Checkins data:", checkins); // Debug log
 		if (checkins.length === 0) return;
 
 		// Today
