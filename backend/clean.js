@@ -6,6 +6,8 @@
 // import CheckIn from "./schema/checkIn.js";
 // import Resource from "./schema/Resource.js";
 
+import { login } from "./controller/authController.js"
+
 // dotenv.config();
 
 // async function cleanupDB() {
@@ -29,3 +31,9 @@
 // }
 
 // cleanupDB();
+
+
+// // team when added auto resfresh
+// // after sign in goes to login
+// dashboard take too long
+// // after projects goes to dashboard

@@ -74,7 +74,7 @@ const ProjectForm = () => {
 				goals: goalList,
 				team: teamId || null,
 			});
-			navigate("/dashboard");
+			navigate("/dashboard/projects");
 			console.log("Project created:", project);
 		} catch (err) {
 			console.error(" Error:", err.error || err.message);

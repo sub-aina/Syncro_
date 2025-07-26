@@ -218,7 +218,8 @@ export default function SignUp() {
 			// Debug: Log what we received
 			console.log("Received token:", token);
 			console.log("Received user:", user);
-			navigate("/?mode=login");
+			navigate("/dashboard");
+			window.location.reload(); // Refresh the page to ensure state is updated
 
 			// navigate("/login");
 		} catch (err) {

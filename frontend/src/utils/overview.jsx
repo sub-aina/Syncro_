@@ -1,241 +1,267 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import API from "../api";
 import socket from "../socket";
 
 const OverviewView = () => {
 	const [currentTime, setCurrentTime] = useState(new Date());
-	const [projects, setProjects] = useState([]);
-	const [recentActivity, setRecentActivity] = useState([]);
-	const [teamMembers, setTeamMembers] = useState([]);
-	const [checkIns, setCheckIns] = useState([]);
+	const [dashboardData, setDashboardData] = useState({
+		projects: [],
+		teamMembers: [],
+		checkIns: [],
+		recentActivity: [],
+	});
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState(null);
+	const [lastFetch, setLastFetch] = useState(null);
+
+	// Cache duration (5 minutes)
+	const CACHE_DURATION = 5 * 60 * 1000;
 
 	// Get current user
-	const getCurrentUser = () => {
+	const getCurrentUser = useCallback(() => {
 		try {
 			const userStr = localStorage.getItem("user");
 			return userStr && userStr !== "undefined" ? JSON.parse(userStr) : null;
 		} catch {
 			return null;
 		}
-	};
+	}, []);
 
 	const currentUser = getCurrentUser();
 
+	// Clock update (reduced frequency)
 	useEffect(() => {
 		const timer = setInterval(() => {
 			setCurrentTime(new Date());
-		}, 1000);
+		}, 10000); // Update every 10 seconds instead of 1 second
 		return () => clearInterval(timer);
 	}, []);
 
-	// Fetch initial data
-	useEffect(() => {
-		fetchAllData();
-	}, []);
+	// Optimized data fetching with caching
+	const fetchDashboardData = useCallback(
+		async (forceRefresh = false) => {
+			const now = Date.now();
 
-	// Listen for real-time updates
-	useEffect(() => {
-		if (!socket) return;
+			// Check cache validity
+			if (!forceRefresh && lastFetch && now - lastFetch < CACHE_DURATION) {
+				return; // Use cached data
+			}
 
-		// Listen for real-time updates
-		socket.on("projectUpdate", (updatedProject) => {
-			setProjects((prev) =>
-				prev.map((p) => (p._id === updatedProject._id ? updatedProject : p))
-			);
-		});
+			setLoading(true);
+			try {
+				// Single API call to get all dashboard data
+				const [projectsRes, teamsRes, checkInsRes] = await Promise.all([
+					API.get("/projects"),
+					API.get("/teams"),
+					API.get("/checkins/getCheckins?limit=10"), // Limit recent check-ins
+				]);
 
-		socket.on("newCheckIn", (checkInData) => {
-			setCheckIns((prev) => [checkInData, ...prev]);
-			// Add to recent activity
-			setRecentActivity((prev) => [
-				{
-					id: Date.now(),
-					type: "checkin",
-					message: `${
-						checkInData.userId?.name || "Someone"
-					} submitted a daily check-in`,
-					user: checkInData.userId?.name || "Unknown",
-					timestamp: new Date(),
-					color: "blue",
-				},
-				...prev.slice(0, 9),
-			]); // Keep last 10 activities
-		});
+				const projects = projectsRes.data || [];
+				const teams = Array.isArray(teamsRes.data) ? teamsRes.data : [];
+				const checkIns = checkInsRes.data || [];
 
-		socket.on("teamUpdate", (teamData) => {
-			fetchTeamData(); // Refresh team data
-		});
-
-		return () => {
-			socket.off("projectUpdate");
-			socket.off("newCheckIn");
-			socket.off("teamUpdate");
-		};
-	}, []);
-
-	const fetchAllData = async () => {
-		setLoading(true);
-		try {
-			await Promise.all([
-				fetchProjects(),
-				fetchTeamData(),
-				fetchRecentCheckIns(),
-				fetchRecentActivity(),
-			]);
-		} catch (err) {
-			setError("Failed to load dashboard data");
-			console.error("Error fetching data:", err);
-		} finally {
-			setLoading(false);
-		}
-	};
-
-	const fetchProjects = async () => {
-		try {
-			const response = await API.get("/projects");
-			setProjects(response.data || []);
-		} catch (err) {
-			console.error("Error fetching projects:", err);
-		}
-	};
-
-	const fetchTeamData = async () => {
-		try {
-			const response = await API.get("/teams");
-
-			// console.log("Raw /teams response:", response.data);
-
-			const teams = Array.isArray(response.data) ? response.data : [];
-
-			const allMembers = new Set();
-			for (const team of teams) {
-				if (Array.isArray(team.members)) {
-					team.members.forEach((member) => {
-						if (member && typeof member === "object") {
-							allMembers.add(
-								JSON.stringify({
+				// Process team members efficiently
+				const memberMap = new Map();
+				teams.forEach((team) => {
+					if (Array.isArray(team.members)) {
+						team.members.forEach((member) => {
+							if (member && member._id) {
+								memberMap.set(member._id, {
 									_id: member._id,
 									name: member.name,
 									email: member.email,
 									isActive: true,
-								})
-							);
-						}
-					});
-				}
-			}
-
-			const uniqueMembers = Array.from(allMembers).map((str) =>
-				JSON.parse(str)
-			);
-			setTeamMembers(uniqueMembers);
-		} catch (err) {}
-	};
-
-	const fetchRecentCheckIns = async () => {
-		try {
-			const response = await API.get("/checkins/getCheckins");
-			setCheckIns(response.data || []);
-		} catch (err) {
-			console.error("Error fetching check-ins:", err);
-		}
-	};
-
-	const fetchRecentActivity = async () => {
-		try {
-			const activities = [];
-
-			checkIns.slice(0, 5).forEach((checkIn, index) => {
-				activities.push({
-					id: `checkin-${checkIn._id || index}`,
-					type: "checkin",
-					message: `Daily check-in `,
-					user: checkIn.userId?.name || "Unknown User",
-					timestamp: new Date(checkIn.createdAt || checkIn.date),
-					color: "blue",
+								});
+							}
+						});
+					}
 				});
-			});
+				const teamMembers = Array.from(memberMap.values());
 
-			// Add recent project updates
-			projects.slice(0, 3).forEach((project, index) => {
-				if (project.status === "completed") {
+				// Generate activity efficiently
+				const activities = [];
+
+				// Add recent check-ins
+				checkIns.slice(0, 5).forEach((checkIn, index) => {
 					activities.push({
-						id: `project-completed-${project._id || index}`,
-						type: "completion",
-						message: `Project ${project.name} marked as completed`,
-						user: project.createdBy?.name || "Unknown User",
-						timestamp: new Date(project.createdAt),
-						color: "purple",
+						id: `checkin-${checkIn._id || index}`,
+						type: "checkin",
+						message: "Daily check-in submitted",
+						user: checkIn.userId?.name || "Unknown User",
+						timestamp: new Date(checkIn.createdAt || checkIn.date),
+						color: "blue",
 					});
-				} else if (project.status === "active") {
-					activities.push({
-						id: `project-active-${project._id || index}`,
-						type: "progress",
-						message: `Project ${project.name} is actively being worked on`,
-						user: project.createdBy?.name || "Unknown User",
-						timestamp: new Date(project.createdAt),
-						color: "green",
-					});
-				}
-			});
+				});
 
-			activities.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-			setRecentActivity(activities.slice(0, 10));
-		} catch (err) {
-			console.error("Error generating recent activity:", err);
-		}
-	};
+				// Add recent project updates (only recent ones)
+				const recentProjects = projects
+					.filter(
+						(p) =>
+							p.createdAt &&
+							now - new Date(p.createdAt).getTime() < 7 * 24 * 60 * 60 * 1000
+					) // Last 7 days
+					.slice(0, 5);
 
+				recentProjects.forEach((project, index) => {
+					if (project.status === "completed") {
+						activities.push({
+							id: `project-completed-${project._id || index}`,
+							type: "completion",
+							message: `Project ${project.name} completed`,
+							user: project.createdBy?.name || "Unknown User",
+							timestamp: new Date(project.updatedAt || project.createdAt),
+							color: "purple",
+						});
+					} else if (project.status === "active") {
+						activities.push({
+							id: `project-active-${project._id || index}`,
+							type: "progress",
+							message: `Project ${project.name} started`,
+							user: project.createdBy?.name || "Unknown User",
+							timestamp: new Date(project.createdAt),
+							color: "green",
+						});
+					}
+				});
+
+				activities.sort(
+					(a, b) => new Date(b.timestamp) - new Date(a.timestamp)
+				);
+
+				setDashboardData({
+					projects,
+					teamMembers,
+					checkIns,
+					recentActivity: activities.slice(0, 10),
+				});
+
+				setLastFetch(now);
+				setError(null);
+			} catch (err) {
+				setError("Failed to load dashboard data");
+				console.error("Error fetching data:", err);
+			} finally {
+				setLoading(false);
+			}
+		},
+		[lastFetch]
+	);
+
+	// Initial data fetch
 	useEffect(() => {
-		if (projects.length > 0 || checkIns.length > 0) {
-			fetchRecentActivity();
-		}
-	}, [projects, checkIns]);
+		fetchDashboardData();
+	}, [fetchDashboardData]);
 
-	const totalProjects = projects.length;
-	const activeProjects = projects.filter((p) => p.status === "active").length;
-	const planningProjects = projects.filter(
-		(p) => p.status === "planning"
-	).length;
-	const completedProjects = projects.filter(
-		(p) => p.status === "completed"
-	).length;
+	// Optimized socket listeners with debouncing
+	useEffect(() => {
+		if (!socket) return;
 
-	const overdue = projects.filter(
-		(p) =>
-			p.deadline &&
-			new Date(p.deadline) < new Date() &&
-			p.status !== "completed"
-	).length;
+		let updateTimeout;
 
-	const completionRate =
-		totalProjects > 0
-			? Math.round((completedProjects / totalProjects) * 100)
-			: 0;
+		const debouncedUpdate = () => {
+			clearTimeout(updateTimeout);
+			updateTimeout = setTimeout(() => {
+				fetchDashboardData(true);
+			}, 1000); // Debounce updates by 1 second
+		};
 
-	const upcomingDeadlines = projects
-		.filter((p) => {
-			if (!p.deadline || p.status === "completed") return false;
-			const deadline = new Date(p.deadline);
-			const weekFromNow = new Date();
-			weekFromNow.setDate(weekFromNow.getDate() + 7);
-			return deadline <= weekFromNow && deadline >= new Date();
-		})
-		.sort((a, b) => new Date(a.deadline) - new Date(b.deadline));
+		const handleProjectUpdate = (updatedProject) => {
+			setDashboardData((prev) => ({
+				...prev,
+				projects: prev.projects.map((p) =>
+					p._id === updatedProject._id ? updatedProject : p
+				),
+			}));
+		};
 
-	const activeTeamMembers = teamMembers.filter((m) => m.isActive).length;
+		const handleNewCheckIn = (checkInData) => {
+			setDashboardData((prev) => ({
+				...prev,
+				checkIns: [checkInData, ...prev.checkIns.slice(0, 9)],
+				recentActivity: [
+					{
+						id: `checkin-${Date.now()}`,
+						type: "checkin",
+						message: "Daily check-in submitted",
+						user: checkInData.userId?.name || "Unknown User",
+						timestamp: new Date(),
+						color: "blue",
+					},
+					...prev.recentActivity.slice(0, 9),
+				],
+			}));
+		};
 
-	const formatTime = (date) => {
+		socket.on("projectUpdate", handleProjectUpdate);
+		socket.on("newCheckIn", handleNewCheckIn);
+		socket.on("teamUpdate", debouncedUpdate);
+
+		return () => {
+			clearTimeout(updateTimeout);
+			socket.off("projectUpdate", handleProjectUpdate);
+			socket.off("newCheckIn", handleNewCheckIn);
+			socket.off("teamUpdate", debouncedUpdate);
+		};
+	}, [fetchDashboardData]);
+
+	// Memoized calculations
+	const stats = useMemo(() => {
+		const { projects, teamMembers } = dashboardData;
+		const totalProjects = projects.length;
+		const activeProjects = projects.filter((p) => p.status === "active").length;
+		const planningProjects = projects.filter(
+			(p) => p.status === "planning"
+		).length;
+		const completedProjects = projects.filter(
+			(p) => p.status === "completed"
+		).length;
+
+		const overdue = projects.filter(
+			(p) =>
+				p.deadline &&
+				new Date(p.deadline) < new Date() &&
+				p.status !== "completed"
+		).length;
+
+		const completionRate =
+			totalProjects > 0
+				? Math.round((completedProjects / totalProjects) * 100)
+				: 0;
+
+		const upcomingDeadlines = projects
+			.filter((p) => {
+				if (!p.deadline || p.status === "completed") return false;
+				const deadline = new Date(p.deadline);
+				const weekFromNow = new Date();
+				weekFromNow.setDate(weekFromNow.getDate() + 7);
+				return deadline <= weekFromNow && deadline >= new Date();
+			})
+			.sort((a, b) => new Date(a.deadline) - new Date(b.deadline))
+			.slice(0, 5); // Limit to 5
+
+		const activeTeamMembers = teamMembers.filter((m) => m.isActive).length;
+
+		return {
+			totalProjects,
+			activeProjects,
+			planningProjects,
+			completedProjects,
+			overdue,
+			completionRate,
+			upcomingDeadlines,
+			activeTeamMembers,
+		};
+	}, [dashboardData]);
+
+	const formatTime = useCallback((date) => {
 		return date.toLocaleTimeString("en-US", {
 			hour12: false,
 			hour: "2-digit",
 			minute: "2-digit",
 		});
-	};
+	}, []);
 
-	const formatRelativeTime = (date) => {
+	const formatRelativeTime = useCallback((date) => {
 		const now = new Date();
 		const diff = now - new Date(date);
 		const hours = Math.floor(diff / (1000 * 60 * 60));
@@ -244,16 +270,43 @@ const OverviewView = () => {
 		if (days > 0) return `${days} day${days > 1 ? "s" : ""} ago`;
 		if (hours > 0) return `${hours} hour${hours > 1 ? "s" : ""} ago`;
 		return "Just now";
-	};
+	}, []);
 
-	if (loading) {
+	// Loading state with skeleton
+	if (loading && !dashboardData.projects.length) {
 		return (
-			<div className="min-h-screen bg-gradient-to-br from-black via-[#1a0a2e] to-[#16213e] flex items-center justify-center">
-				<div className="text-center">
-					<div className="w-16 h-16 border-2 border-white/30 border-t-purple-400 rounded-full animate-spin mx-auto mb-4"></div>
-					<p className="text-gray-400 text-sm tracking-wide">
-						Loading dashboard...
-					</p>
+			<div className="max-w-7xl mx-auto px-6 py-8 space-y-10">
+				<div className="animate-pulse">
+					<div className="h-8 bg-white/10 rounded w-64 mb-4"></div>
+					<div className="h-4 bg-white/5 rounded w-48 mb-8"></div>
+
+					<div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+						{[...Array(4)].map((_, i) => (
+							<div
+								key={i}
+								className="border border-white/10 bg-white/5 p-6 rounded-sm"
+							>
+								<div className="h-4 bg-white/10 rounded w-20 mb-4"></div>
+								<div className="h-8 bg-white/10 rounded w-12"></div>
+							</div>
+						))}
+					</div>
+
+					<div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+						{[...Array(2)].map((_, i) => (
+							<div
+								key={i}
+								className="border border-white/10 bg-white/5 p-6 rounded-sm"
+							>
+								<div className="h-6 bg-white/10 rounded w-32 mb-6"></div>
+								<div className="space-y-4">
+									{[...Array(3)].map((_, j) => (
+										<div key={j} className="h-12 bg-white/10 rounded"></div>
+									))}
+								</div>
+							</div>
+						))}
+					</div>
 				</div>
 			</div>
 		);
@@ -261,7 +314,7 @@ const OverviewView = () => {
 
 	if (error) {
 		return (
-			<div className="min-h-screen bg-gradient-to-br from-black via-[#1a0a2e] to-[#16213e] flex items-center justify-center">
+			<div className="max-w-7xl mx-auto px-6 py-8">
 				<div className="text-center">
 					<div className="border border-red-500/30 bg-red-500/10 rounded-sm p-6 mb-4">
 						<h2 className="text-red-400 text-lg font-light tracking-wide mb-2">
@@ -270,7 +323,7 @@ const OverviewView = () => {
 						<p className="text-red-300 text-sm tracking-wide">{error}</p>
 					</div>
 					<button
-						onClick={fetchAllData}
+						onClick={() => fetchDashboardData(true)}
 						className="border border-purple-400/30 bg-purple-500/10 hover:bg-purple-500/20 text-white px-6 py-2 rounded-sm font-light tracking-wide transition-all duration-300"
 					>
 						Retry
@@ -321,7 +374,7 @@ const OverviewView = () => {
 								Total Projects
 							</p>
 							<p className="text-3xl font-light tracking-wide">
-								{totalProjects}
+								{stats.totalProjects}
 							</p>
 						</div>
 						<div className="w-12 h-12 bg-white/5 border border-white/10 rounded-sm flex items-center justify-center">
@@ -349,7 +402,7 @@ const OverviewView = () => {
 								Active
 							</p>
 							<p className="text-3xl font-light tracking-wide">
-								{activeProjects}
+								{stats.activeProjects}
 							</p>
 						</div>
 						<div className="w-12 h-12 bg-white/5 border border-white/10 rounded-sm flex items-center justify-center">
@@ -377,7 +430,7 @@ const OverviewView = () => {
 								Planning
 							</p>
 							<p className="text-3xl font-light tracking-wide">
-								{planningProjects}
+								{stats.planningProjects}
 							</p>
 						</div>
 						<div className="w-12 h-12 bg-white/5 border border-white/10 rounded-sm flex items-center justify-center">
@@ -405,7 +458,7 @@ const OverviewView = () => {
 								Completed
 							</p>
 							<p className="text-3xl font-light tracking-wide">
-								{completedProjects}
+								{stats.completedProjects}
 							</p>
 						</div>
 						<div className="w-12 h-12 bg-white/5 border border-white/10 rounded-sm flex items-center justify-center">
@@ -435,17 +488,17 @@ const OverviewView = () => {
 							Project Completion Rate
 						</h4>
 						<span className="text-2xl font-light text-white tracking-wide">
-							{completionRate}%
+							{stats.completionRate}%
 						</span>
 					</div>
 					<div className="w-full bg-white/10 rounded-full h-2">
 						<div
 							className="bg-gradient-to-r from-purple-500 to-blue-500 h-2 rounded-full transition-all duration-1000 ease-out"
-							style={{ width: `${completionRate}%` }}
+							style={{ width: `${stats.completionRate}%` }}
 						></div>
 					</div>
 					<p className="text-xs text-gray-400 mt-2 tracking-wide">
-						{completedProjects}/{totalProjects} projects completed
+						{stats.completedProjects}/{stats.totalProjects} projects completed
 					</p>
 				</div>
 
@@ -456,22 +509,22 @@ const OverviewView = () => {
 						</h4>
 						<span
 							className={`text-2xl font-light tracking-wide ${
-								overdue > 0 ? "text-red-400" : "text-green-400"
+								stats.overdue > 0 ? "text-red-400" : "text-green-400"
 							}`}
 						>
-							{overdue}
+							{stats.overdue}
 						</span>
 					</div>
 					<div className="flex items-center">
 						<svg
 							className={`w-4 h-4 mr-2 ${
-								overdue > 0 ? "text-red-400" : "text-green-400"
+								stats.overdue > 0 ? "text-red-400" : "text-green-400"
 							}`}
 							fill="none"
 							stroke="currentColor"
 							viewBox="0 0 24 24"
 						>
-							{overdue > 0 ? (
+							{stats.overdue > 0 ? (
 								<path
 									strokeLinecap="round"
 									strokeLinejoin="round"
@@ -488,7 +541,7 @@ const OverviewView = () => {
 							)}
 						</svg>
 						<span className="text-xs text-gray-400 tracking-wide">
-							{overdue > 0 ? "Needs attention" : "All on track"}
+							{stats.overdue > 0 ? "Needs attention" : "All on track"}
 						</span>
 					</div>
 				</div>
@@ -499,12 +552,13 @@ const OverviewView = () => {
 							Team Members
 						</h4>
 						<span className="text-2xl font-light text-white tracking-wide">
-							{teamMembers.length}
+							{stats.teamMembers?.length || 0}
 						</span>
 					</div>
+
 					<div className="flex items-center">
 						<div className="flex -space-x-2">
-							{teamMembers.slice(0, 4).map((member, idx) => (
+							{stats.teamMembers?.slice(0, 4).map((member, idx) => (
 								<div
 									key={member._id || idx}
 									className="w-6 h-6 bg-gradient-to-br from-purple-400 to-blue-500 rounded-full border-2 border-gray-800 flex items-center justify-center text-xs text-white font-light"
@@ -513,14 +567,16 @@ const OverviewView = () => {
 									{member.name?.[0]?.toUpperCase() || "U"}
 								</div>
 							))}
-							{teamMembers.length > 4 && (
+
+							{(stats.teamMembers?.length || 0) > 4 && (
 								<div className="w-6 h-6 bg-gray-600 rounded-full border-2 border-gray-800 flex items-center justify-center text-xs text-white font-light">
-									+{teamMembers.length - 4}
+									+{stats.teamMembers.length - 4}
 								</div>
 							)}
 						</div>
+
 						<span className="text-xs text-gray-400 ml-3 tracking-wide">
-							{activeTeamMembers} active
+							{stats.activeTeamMembers || 0} active
 						</span>
 					</div>
 				</div>
@@ -537,7 +593,7 @@ const OverviewView = () => {
 						<div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
 					</div>
 					<div className="space-y-4 max-h-80 overflow-y-auto">
-						{recentActivity.length > 0 ? (
+						{(stats.recentActivity?.length || 0) > 0 ? (
 							recentActivity.map((activity) => (
 								<div
 									key={activity.id}
@@ -588,8 +644,8 @@ const OverviewView = () => {
 						Upcoming Deadlines
 					</h3>
 					<div className="space-y-4">
-						{upcomingDeadlines.length > 0 ? (
-							upcomingDeadlines.slice(0, 5).map((project, idx) => {
+						{(stats.upcomingDeadlines.length || 0) > 0 ? (
+							stats.upcomingDeadlines.slice(0, 5).map((project, idx) => {
 								const deadline = new Date(project.deadline);
 								const daysUntil = Math.ceil(
 									(deadline - new Date()) / (1000 * 60 * 60 * 24)

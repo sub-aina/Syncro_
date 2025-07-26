@@ -45,6 +45,7 @@ const CreateTeamForm = ({ onTeamCreated }) => {
 
 			if (onTeamCreated) {
 				onTeamCreated(teamId);
+				window.location.reload(); // Refresh the page
 			}
 
 			setName("");
