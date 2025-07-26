@@ -9,7 +9,7 @@ const AddTeamMemberForm = ({ teamId }) => {
 
 	// Debug logging
 	useEffect(() => {
-		console.log("AddTeamMemberForm received teamId:", teamId);
+		// console.log("AddTeamMemberForm received teamId:", teamId);
 	}, [teamId]);
 
 	const handleAddMember = async (e) => {

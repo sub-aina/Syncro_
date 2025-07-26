@@ -2,7 +2,8 @@
 import axios from "axios";
 
 const API = axios.create({
-    baseURL: "https://syncro-crhm.onrender.com/api",
+    baseURL: 'http://localhost:5000/api', // Update with your backend URL
+    withCredentials: true,
 });
 
 // Attach token automatically to every request

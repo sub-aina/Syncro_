@@ -93,15 +93,21 @@ export const fetchTeams = async (req, res) => {
         const userId = req.user;
 
         // Find teams where user is either creator or member
+
+        console.log("fetchTeams userId:", userId);
         const teams = await Team.find({
             $or: [
                 { createdBy: userId },
                 { members: userId }
             ]
         })
+
             .populate("createdBy", "name email studentId")
             .populate("members", "name email studentId")
             .sort({ createdAt: -1 });
+
+
+        console.log("Found teams:", teams);
 
         res.status(200).json({
             teams: teams.map(team => ({
@@ -113,8 +119,11 @@ export const fetchTeams = async (req, res) => {
                 createdAt: team.createdAt
             }))
         });
+
+
     } catch (error) {
         console.error("Error fetching teams:", error);
         res.status(500).json({ message: "Failed to fetch teams", error: error.message });
     }
 };
+
