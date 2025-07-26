@@ -1,6 +1,6 @@
 import { io } from "socket.io-client";
 
-const socket = io("https://syncro-crhm.onrender.com/api", {
+const socket = io("https://syncro-crhm.onrender.com", {
     withCredentials: true,
     transports: ["websocket", "polling"], // Add polling as fallback
     autoConnect: true,
